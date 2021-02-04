@@ -1,4 +1,3 @@
-from abc import ABC
 import argparse
 from itertools import chain, combinations
 from copy import deepcopy
@@ -264,7 +263,6 @@ class Pretty_Proof:
             self.num += 1
 
 
-
 parser = argparse.ArgumentParser(description='FOL Solver')
 parser.add_argument('file', metavar='f', type=str)
 
@@ -273,19 +271,10 @@ args = parser.parse_args()
 
 clauses = parse(open(args.file).readlines())
 print(clauses)
-from unification import *
 
-# sub = unify(clauses[0])
-# print(sub)
-
-
-# clauses = [Clause(map(lambda x: (False, int(x[1:])) if x[0] == "!" else (True, int(x)), l.strip().split(" "))) for l in open("input2")]      # !3 4 --> not X3 OR X4
 
 clauses = map(Clause, clauses)
 resolutions = set(map(Resolution, clauses))
-# res =  resolutions[0].proof(resolutions[1])
-# print(res)
-
 
 old_resolutions = set()
 
