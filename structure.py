@@ -95,7 +95,7 @@ class Relation:
 
 
     def tex(self):
-        s = self.label + "(" + ", ".join(map(lambda x: str(x), self.childs)) + ")"
+        s = self.label + "(" + ", ".join(map(lambda x: x.tex(), self.childs)) + ")"
         if self.neg:
             return "\\neg " + s
 
