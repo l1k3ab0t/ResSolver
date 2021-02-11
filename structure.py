@@ -31,6 +31,10 @@ class Subst:
     def tex(self):
         return "\\{"+ ", ".join(k.tex() +"\\to "+ v.tex() for k,v in self.subs.items()) + " \\}"
 
+    
+    def __hash__(self):
+        return hash(tuple(self.subs.items()))
+
 
     def __str__(self):
         return "{" +",".join(str(k)+"->"+str(v) for k,v in self.subs.items()) + "}"
@@ -169,10 +173,10 @@ class Var(Term):
         return str(self)
 
     def __str__(self):
-        return "X"+self.label
+        return "x"+self.label
 
     def tex(self):
-        return "X_{"+str(self.label)+"}"
+        return "x_{"+str(self.label)+"}"
 
 
 

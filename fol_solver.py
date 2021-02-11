@@ -17,7 +17,10 @@ class Clause:
         self.relations = frozenset(rel.apply(subst) for rel in self.relations)
 
     def getvars(self):
-        return set.union(*map(lambda x: x.getvars(), self.relations))
+        vs = [*map(lambda x: x.getvars(), self.relations)]
+        if len(vs)>0:
+            return set.union(*vs)
+        return set()
 
     def difference(self, other):
         unfrozen = set(self.relations)
@@ -75,15 +78,16 @@ class Resolution:
     def __init__(
     self,
     resolvent: Clause,
-    removed=None,
     p1=None,
     p2=None,
+    rels1=None,
+    rels2=None,
     subst=None,
      renaming=None):
 
         self.resolvent = resolvent  # resolvent :: Clause
         self.parents = (p1, p2)  # p1 :: Resolution
-        self.removed = removed
+        self.rels=(rels1, rels2)
         self.subst = subst
         self.renaming = renaming
 
@@ -144,6 +148,9 @@ class Resolution:
                         r1 = Clause(r1)
                         r2 = Clause(r2)
 
+                        r1c = deepcopy(r1)
+                        r2c = deepcopy(r2)
+
                         # print(rels1, rels2, mgu, renaming, k1, k2, r1,r2)
                         if bool(mgu):
                             k1.apply(mgu)
@@ -162,9 +169,16 @@ class Resolution:
                             if len(k1.relations) == 0:
                                 found = True
 
-                            resolutions.append((found, Resolution(k1, p1=p1, p2=p2, subst=mgu, renaming=renaming)))
+                            resolutions.append((found, Resolution(k1, p1=p1, p2=p2, rels1=r1c, rels2=r2c, subst=mgu, renaming=renaming)))
 
         return resolutions
+
+    
+    def dept(self):
+        if not self.parents[0]:
+            return 0
+
+        return 1 + max(self.parents[0].dept(), self.parents[1].dept())
 
 
     def deep_parents(self):
@@ -187,7 +201,7 @@ class Resolution:
     
 
     def __hash__(self):
-        return hash(self.resolvent.relations)
+        return hash(tuple([self.resolvent.relations, self.subst, self.renaming]) + self.parents)
 
 
     def __str__(self):
@@ -208,10 +222,18 @@ class Pretty_Proof:
             self.m[proof] = self.num
             self.num += 1
         else:
-            if not proof.parents[0] in self.m:
-                self.pretty(proof.parents[0])
-            if not proof.parents[1] in self.m:
-                self.pretty(proof.parents[1])
+            if not proof.parents[0] in self.m and not proof.parents[1] in self.m:
+                if proof.parents[0].dept() >= proof.parents[1].dept():
+                    self.pretty(proof.parents[0])
+                    self.pretty(proof.parents[1])
+                else:
+                    self.pretty(proof.parents[1])
+                    self.pretty(proof.parents[0])
+            else:
+                if not proof.parents[0] in self.m:
+                    yyself.pretty(proof.parents[0])
+                if not proof.parents[1] in self.m:
+                    self.pretty(proof.parents[1])
 
             res = "{}"
             if len(proof.resolvent.relations) != 0:
@@ -221,8 +243,8 @@ class Pretty_Proof:
             p1id = self.m[proof.parents[0]]
             p2id = self.m[proof.parents[1]]
 
-            p1str = str(proof.parents[0].resolvent)
-            p2str = str(proof.parents[1].resolvent)
+            p1str = str(proof.rels[0])
+            p2str = str(proof.rels[1])
 
             print("{}.\t{}\t\t\t(Res) from {} and {} with {{{}}} and {{{}}}, renaming {}, and mgu {}".format(
                                         self.num, res, p1id, p2id, p1str, p2str, proof.renaming, proof.subst))
@@ -238,45 +260,57 @@ class Pretty_Proof:
 
     def _tex(self, proof):
         if not proof.parents[0]:
-            print ("{}. & \\{{ {}\\}}& \\text{{premise}} \\\\".format(self.num, proof.resolvent.tex()))
+            print ("\t{}. & \\{{ {}\\}}& \\text{{premise}} \\\\".format(self.num, proof.resolvent.tex()))
             self.m[proof] = self.num
             self.num += 1
         else:
-            if not proof.parents[0] in self.m:
-                self._tex(proof.parents[0])
-            if not proof.parents[1] in self.m:
-                self._tex(proof.parents[1])
-
+            if not proof.parents[0] in self.m and not proof.parents[1] in self.m:
+                if proof.parents[0].dept() >= proof.parents[1].dept():
+                    self._tex(proof.parents[0])
+                    self._tex(proof.parents[1])
+                else:
+                    self._tex(proof.parents[1])
+                    self._tex(proof.parents[0])
+            else:
+                if not proof.parents[0] in self.m:
+                    yyself._tex(proof.parents[0])
+                if not proof.parents[1] in self.m:
+                    self._tex(proof.parents[1])
+            
             res = ""
             if len(proof.resolvent.relations) != 0:
                 res = proof.resolvent.tex()
 
+
             p1id = self.m[proof.parents[0]]
             p2id = self.m[proof.parents[1]]
 
+            p1str = proof.rels[0].tex()
+            p2str = proof.rels[1].tex()
 
-            p1str = proof.parents[0].resolvent.tex()
-            p2str = proof.parents[1].resolvent.tex()
-
-            print("{}. & \\{{ {}\\}} & \\text{{(Res) with from {} and {} with $\\{{ {} \\}}$ and $\\{{ {} \\}}$}}\\\\ \n&&\\text{{ renaming ${}$, and mgu ${}$}} \\\\".format(self.num, res, p1id, p2id, p1str, p2str, proof.renaming.tex(), proof.subst.tex()))
+            print("\t{}. & \\{{ {}\\}} & \\text{{(Res) from {} and {} with $\\{{ {} \\}}$ and $\\{{ {} \\}}$}}\\\\ \n&&\\text{{ renaming ${}$, and mgu ${}$}} \\\\".format(self.num, res, p1id, p2id, p1str, p2str, proof.renaming.tex(), proof.subst.tex()))
             self.m[proof] = self.num
             self.num += 1
 
 
 parser = argparse.ArgumentParser(description='FOL Solver')
 parser.add_argument('file', metavar='f', type=str)
+parser.add_argument('--all', action="store_true")
 
 args = parser.parse_args()
 
 
 clauses = parse(open(args.file).readlines())
-print(clauses)
+printall = args.all
 
+print(clauses)
 
 clauses = map(Clause, clauses)
 resolutions = set(map(Resolution, clauses))
 
 old_resolutions = set()
+
+solutions = set()
 
 while resolutions != old_resolutions:
     old_resolutions = deepcopy(resolutions)
@@ -289,13 +323,25 @@ while resolutions != old_resolutions:
        
         
         for found, res in r1.proof(r2):
-            if found:
-                pretty = Pretty_Proof()
-                pretty.tex(res)
-                pretty = Pretty_Proof()
-                pretty.pretty(res)
-                sys.exit()
+            if found and res:
+                solutions.add(res)
+                if not printall:
+                    pretty = Pretty_Proof()
+                    pretty.tex(res)
+                    pretty = Pretty_Proof()
+                    pretty.pretty(res)
+                    sys.exit()
+                continue
             resolutions.add(res)
-           
-for res in resolutions:
-    print(res)
+
+
+if solutions:
+    for solution in solutions:
+        pretty = Pretty_Proof()
+        pretty.tex(solution)
+        pretty = Pretty_Proof()
+        pretty.pretty(solution)
+else:
+    for res in resolutions:
+        print(res)
+
